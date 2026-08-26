@@ -191,6 +191,8 @@ assert downloaded_ids == expected_ids  # 数量必须完全匹配
 
 - **Scopus 学术数据库**：见 [references/scopus-specific.md](references/scopus-specific.md)
   - 排序select的value映射、分页设置、引文链接URL模板、Export菜单结构
+- **高阶技巧与最佳实践**：见 [references/advanced-techniques.md](references/advanced-techniques.md)
+  - 网络请求捕获、资源阻塞提速、高效选择器、可见性精确判断、Tab管理、速率限制、安全防护
 - **常见陷阱与排查**：见 [references/common-pitfalls.md](references/common-pitfalls.md)
   - 各类失败的诊断方法和解决方案
 

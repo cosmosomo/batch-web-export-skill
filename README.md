@@ -1,6 +1,6 @@
 # batch-web-export-skill
 
-**版本**: v1.1.0
+**版本**: v1.2.0
 **最后更新**: 2026-08-26
 **测试平台**: 豆包（Doubao）桌面端
 
@@ -57,7 +57,8 @@ batch-web-export/
 │   └── verify_and_rename.py          # 核对与重命名命令行工具
 ├── references/
 │   ├── scopus-specific.md            # Scopus 学术数据库特定操作细节
-│   └── common-pitfalls.md            # 8大常见陷阱与排查指南
+│   ├── advanced-techniques.md        # 高阶技巧与最佳实践（网络捕获/资源阻塞/选择器/Tab管理等）
+│   └── common-pitfalls.md            # 9大常见陷阱与排查指南
 └── examples/
     └── expected_items_sample.json    # 预期项列表示例
 ```
@@ -137,6 +138,7 @@ python verify_and_rename.py \
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| v1.2.0 | 2026-08-26 | 新增高阶技巧参考文档（网络请求捕获、资源阻塞提速、高效选择器、可见性精确判断、Tab管理、速率限制、安全防护）；common-pitfalls 新增陷阱9（offsetParent可见性判断不可靠） |
 | v1.1.0 | 2026-08-26 | 新增批量执行引擎模板；修复 scopus-specific.md 翻页代码 offsetParent 矛盾；改进 verify_and_rename.py 命名模板缺字段 fallback；明确生态边界 |
 | v1.0.0 | 2026-08-26 | 初始版本：四阶段工作流、核对重命名工具、Scopus 特定指南、常见陷阱文档 |
 

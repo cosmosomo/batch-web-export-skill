@@ -135,6 +135,35 @@
 
 ---
 
+## 陷阱9：用 offsetParent 判断可见性不可靠
+
+**症状**：用 `el.offsetParent !== null` 筛选可见按钮，结果有些可见按钮被跳过，有些不可见按钮被选中。
+
+**根因**：`offsetParent` 不是可靠的可见性判断：
+- `position: fixed` 的元素 `offsetParent` 为 `null`，但它是可见的
+- 被弹窗遮挡的元素 `offsetParent` 不为 `null`，但它实际上不可点击
+- `display: none` 的元素 `offsetParent` 为 `null`，这是正确的
+- 但 `visibility: hidden` 的元素 `offsetParent` 不为 `null`，这是错误的
+
+**解决方案**：
+- ✅ **优先用 `bu.find()` + ref 点击**，ref 直接调用元素的 click() 方法，不受视觉遮挡影响，不需要判断可见性
+- ✅ 只有在用坐标点击（`bu.click_xy()`）时才需要判断可见性
+- ✅ 正确的可见性判断用 `getBoundingClientRect()` + `elementFromPoint()`：
+  ```javascript
+  function isClickable(el) {
+      const rect = el.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) return false;
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      const topEl = document.elementFromPoint(centerX, centerY);
+      return el === topEl || el.contains(topEl);
+  }
+  ```
+- ❌ 不要用 `offsetParent !== null` 判断可见性
+- ❌ 不要在 JS 中筛选可见性后再点击，直接用 ref 点击
+
+---
+
 ## 快速诊断清单
 
 遇到失败时，按顺序检查：
@@ -146,3 +175,4 @@
 5. **页面加载完了吗？** → 低引用文章增加等待时间
 6. **是0引用吗？** → 检查该项是否有施引文献
 7. **翻页状态对吗？** → 确认当前在正确的列表页和页码
+8. **可见性判断有问题吗？** → 检查是否用了 `offsetParent` 筛选，改用 ref 点击

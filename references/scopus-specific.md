@@ -47,6 +47,8 @@ for (let s of selects) {
 
 可选值：10, 20, 50, 100, 200
 
+**推荐设置为200条/页**：减少翻页次数，高引用文章（施引文献>100）也能在一页内显示大部分。施引文献页同样可以设置每页200条。
+
 ## 施引文献页 URL 模板
 
 从作者页的引文链接提取 EID 后，直接构造施引文献页 URL：
@@ -82,17 +84,56 @@ for (let el of items) {
 
 **其他可选格式**：CSV、RIS、BibTeX、纯文本
 
-### 步骤3：确认导出（关键）
-CSV 对话框出现后，**再次调用 `bu.find("Export")`，点击最后一个 ref**：
+### 步骤3：选择导出范围并确认（关键）
+
+CSV 对话框出现后，**必须先选择导出范围为"Documents 1 - N"，再点击 Export 按钮**。不要选"All documents on this page"（只导出当前页，高引用文章会漏数据）。
+
 ```python
+# 3a. 用JS选择"Documents 1 - N"单选按钮，并填入总数
+bu.js('''
+    // 找到"Documents 1 -"的单选按钮（第二个radio）
+    const radios = document.querySelectorAll('input[type="radio"]');
+    let docRangeRadio = null;
+    for (let r of radios) {
+        const label = r.closest('label') || r.parentElement;
+        if (label && label.textContent.includes('Documents 1')) {
+            docRangeRadio = r;
+            break;
+        }
+    }
+    if (docRangeRadio) {
+        docRangeRadio.click();
+        // 找到后面的数字输入框，填入总数（从对话框标题提取，如"Export 565 documents"）
+        const title = document.querySelector('[role="dialog"] h2, .modal-title, h2');
+        let total = 0;
+        if (title) {
+            const match = title.textContent.match(/(\\d+)/);
+            if (match) total = parseInt(match[1]);
+        }
+        if (total > 0) {
+            const input = docRangeRadio.closest('label')?.querySelector('input[type="number"]') ||
+                          document.querySelector('input[type="number"]');
+            if (input) {
+                input.value = total;
+                input.dispatchEvent(new Event('change', {bubbles: true}));
+                input.dispatchEvent(new Event('input', {bubbles: true}));
+            }
+        }
+    }
+''')
+time.sleep(1.0)  # 等待范围选择生效
+
+# 3b. 点击对话框底部的蓝色"Export"按钮
+# 用 bu.find("Export") 取最后一个ref（对话框底部的确认按钮）
 btns2 = bu.find("Export")
-bu.click(btns2[-1])  # 最后一个是对话框底部的蓝色确认按钮
+bu.click(btns2[-1])
 ```
 
-**为什么是最后一个**：`bu.find("Export")` 在对话框打开时返回约10个匹配项，包括：
-- 工具栏的 Export 按钮（前几个）
-- 对话框内的各种 Export 文字（中间）
-- 对话框底部的蓝色确认 Export 按钮（最后一个）
+**为什么必须选"Documents 1 - N"**：
+- "All documents on this page" 只导出当前页（每页最多200条）
+- 高引用文章（如565次施引）需要3页，只导当前页会丢失365条数据
+- "Documents 1 - N" 一次性导出全部，最多支持20,000条
+- 对话框标题会显示总数（如"Export 565 documents to CSV"），直接提取填入即可
 
 ### 步骤4：等待下载
 ```python
@@ -101,32 +142,49 @@ record = bu.wait_for_download(timeout=25)
 # record.path 是下载文件路径
 ```
 
-## 导出对话框说明
+## 导出对话框结构（精确）
 
-CSV 导出对话框默认设置：
-- 导出范围：本页中的所有文献（施引文献通常≤10条，一页足够）
-- 导出字段：引文信息（作者、标题、年份、EID、来源、卷期页、引用计数等）
+CSV 导出对话框的完整结构：
 
-如果施引文献超过10条，需要注意：默认只导出当前页。如需导出全部，需在对话框中选择导出范围：
+### 顶部
+- **标题**：`Export N documents to CSV`（N为施引文献总数，如"Export 565 documents to CSV"）
+- **提示**：`You can export up to 20,000 documents in CSV format.`
 
-```javascript
-// CSV对话框打开后，找到范围选择的select或radio
-// Scopus的导出对话框通常有"文献 1 - N"的下拉选择
-const selects = document.querySelectorAll('select');
-for (let s of selects) {
-    for (let opt of s.options) {
-        // 选择包含"全部"或最大数字的选项
-        if (opt.textContent.includes('全部') || /\d+\s*-\s*\d+/.test(opt.textContent)) {
-            // 优先选数字最大的范围
-            s.value = opt.value;
-            s.dispatchEvent(new Event('change', {bubbles: true}));
-            break;
-        }
-    }
-}
-```
+### 导出范围（两个单选按钮，必须选第二个）
+| 选项 | 说明 | 是否推荐 |
+|------|------|----------|
+| `All documents on this page` | 只导出当前页（每页最多200条） | ❌ 高引用文章会漏数据 |
+| `Documents 1 - [输入框]` | 导出指定范围，输入框填总数 | ✅ **必须选这个** |
 
-**注意**：施引文献通常较少（大部分文章<10条），默认导出当前页即可。只有高引用文章（>10条施引文献）才需要调整范围。如果不确定，可以在单篇验证阶段检查导出的CSV行数是否与页面显示的施引文献数一致。
+### 导出信息（5个分类，默认勾选第一个）
+| 分类 | 默认状态 | 包含字段 |
+|------|----------|----------|
+| `Citation information` | ✅ 默认勾选 | Author(s), Document title, Year, EID, Source title, Volume/issues/pages, Citation count, Source & document type, Publication stage, DOI, Open access |
+| `Bibliographical information` | ❌ 未勾选 | Affiliations, Serial identifiers, Publisher, Editor(s), Language, Correspondence address, Abbreviated source title |
+| `Abstract & keywords` | ❌ 未勾选 | Abstract, Author keywords, Indexed keywords |
+| `Funding details` | ❌ 未勾选 | Funding text, Sponsor |
+| `Other information` | ❌ 未勾选 | Number, Tradenames & manufacturers, Accession numbers & chemicals, Acronym, Conference information, Include references |
+
+**默认勾选"Citation information"已足够**，不需要额外勾选其他分类（会增加文件大小和导出时间）。
+
+### 底部选项
+- `Select all information` — 链接，点击勾选所有分类（不推荐）
+- `Truncate to optimize for Excel` — 开关，**默认开启**，保持开启即可
+- `Save as preference` — 复选框，保存为首选项（不需要）
+- `Export` — **蓝色按钮**，点击开始导出
+
+### 操作要点
+1. **必须选"Documents 1 - N"**，不要选"All documents on this page"
+2. 输入框中填入总数（从对话框标题提取，如"Export 565 documents"→填565）
+3. 保持默认的"Citation information"勾选
+4. 保持"Truncate to optimize for Excel"开启
+5. 点击蓝色"Export"按钮
+
+### 高引用文章处理策略
+- 施引文献 ≤ 200：选"Documents 1 - N"，一次性导出全部
+- 施引文献 > 200：仍然选"Documents 1 - N"，Scopus支持最多20,000条一次性导出
+- **不需要翻页导出**：只要选对范围，Scopus会自动处理多页数据
+- 验证：导出后检查CSV行数（含表头）是否等于施引文献数+1
 
 ## 抓取文献列表
 
@@ -203,3 +261,6 @@ if (pagination) {
 1. **LeapSpace 推荐弹窗**：右下角可能出现 "Scopus recommends LeapSpace" 弹窗，不影响 ref 点击，但会遮挡视觉。不要用可见性筛选按钮。
 2. **低引用文章对话框打开慢**：只有1-2次引用的文章，CSV对话框打开可能需要3秒以上，重试时增加等待时间。
 3. **第三页0引用文章**：按引用降序排列后，第三页后半部分是0引用文章，没有引文链接，无法导出施引文献（因为没有施引文献）。
+4. **新界面导出需要先选范围**：Scopus 新界面的 CSV 导出对话框必须选择"Documents 1 - N"并填入总数，不能用默认的"All documents on this page"，否则高引用文章会漏数据。
+5. **不要误勾选左侧筛选器**：左侧"Refine search"面板有各种筛选器（如"All open access"、年份范围、文献类型等），导出前确认没有误勾选，否则导出结果会被筛选不全。如果误勾选了，取消勾选后重新导出。
+6. **导出按钮灰色不可点**：如果导出按钮显示"需要进行有效选择才能导出"，说明当前页没有选中任何文献。需要先全选当前页文献（点击列表顶部的全选复选框），或直接在导出对话框中选择"Documents 1 - N"范围。

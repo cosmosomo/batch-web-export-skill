@@ -3,6 +3,10 @@ name: batch-web-export
 description: 批量网页导出/下载工作流。适用于需要登录的网站上重复执行"进入列表项→点击导出→选择格式→确认下载"的批量操作，典型场景包括：学术数据库（Scopus、Web of Science、CNKI、PubMed、IEEE）批量导出文献/引用/施引文献、电商平台（淘宝、京东）批量导出订单/商品、后台系统（CRM、OA、财务）批量导出报表/数据、社交媒体批量导出内容。包含单篇验证、批量执行、失败重试、集合交集核对、按业务键重命名的完整闭环。当用户要求"批量导出""批量下载""逐一点开然后导出""把这些都导出来"且目标是网页操作时使用。
 ---
 
+**版本**: v1.1.0 | **测试平台**: 豆包桌面端
+
+> **生态边界**：本 Skill 的浏览器自动化执行层依赖豆包 `seed_browser_use` API（`bu.find()` / `bu.click()` 等）。方法论、`verify_and_rename.py`、Scopus JS 代码通用，其他 Agent 可参考但需改写 `bu.xxx()` 调用。
+
 # Batch Web Export
 
 在需要登录的网页上批量执行重复导出操作的标准化工作流。核心原则：**先验证再放大、用稳定方式定位元素、用可控批量大小控制风险、用核对闭环消灭沉默失败**。
@@ -88,7 +92,19 @@ https://example.com/export?id={item_id}
 
 ## 阶段3：批量执行
 
-### 3.1 单篇执行模板（参数化）
+### 3.0 推荐：使用批量执行引擎模板
+
+**不要从零写批量循环。** 使用 `scripts/batch_export_template.py` 执行引擎模板：
+
+1. 复制模板全部代码到 `computer_use_tool(plane="bu")` 的 code 参数中
+2. 修改 `CONFIG` 字典（URL模板、批量大小、等待时间、输出目录、命名模板）
+3. 填入 `ITEMS` 列表（从列表页抓取的预期项，每项含ID和业务字段）
+4. 实现/修改3个自定义函数（`navigate_to_item` / `open_export_and_select_format` / `confirm_export_and_wait`）
+5. 执行即可
+
+引擎自动处理：分批控制、失败收集、下载后立即重命名、失败项统一重试（调参）、进度输出、最终统计。Scopus 的3个函数已预置实现，通常不需要修改。
+
+### 3.1 单篇执行模板（如不使用引擎模板，参考以下伪代码）
 ```
 对每个 item_id：
   1. bu.navigate(url_template.format(item_id))
@@ -180,6 +196,11 @@ assert downloaded_ids == expected_ids  # 数量必须完全匹配
 
 ## 可复用脚本
 
+- **批量执行引擎**：`scripts/batch_export_template.py`
+  - 完整的批量导出执行框架，包含分批控制、失败收集、立即重命名、统一重试、进度统计
+  - 使用时只需修改 CONFIG、填入 ITEMS、实现3个网站特定函数
+  - Scopus 的3个函数已预置实现
 - **核对与重命名**：`scripts/verify_and_rename.py`
   - 输入：预期ID列表、下载目录、命名模板
   - 输出：核对清单CSV、按业务键重命名的文件、缺失/多余报告
+  - 命名模板缺字段时自动用ID兜底，避免全部失败

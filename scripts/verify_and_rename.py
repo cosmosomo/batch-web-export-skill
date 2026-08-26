@@ -46,7 +46,7 @@ def load_expected(filepath):
         sys.exit(1)
 
     if filepath.suffix.lower() == '.json':
-        with open(filepath, 'r', encoding='utf-8') as f:
+        with open(filepath, 'r', encoding='utf-8-sig') as f:
             data = json.load(f)
     elif filepath.suffix.lower() == '.csv':
         with open(filepath, 'r', encoding='utf-8-sig') as f:
@@ -131,8 +131,20 @@ def rename_files(expected, downloaded_files, output_dir, name_template):
         fid = item['id']
         if fid in downloaded_files:
             src = downloaded_files[fid]
+            # 生成文件名：模板缺字段时用ID兜底，避免全部失败
             try:
                 new_name = name_template.format(**item)
+            except KeyError as e:
+                print(f"    ⚠️ 命名模板缺少字段 {e}，用ID兜底命名: {fid}")
+                ext = Path(name_template).suffix or '.csv'
+                new_name = f"{fid}{ext}"
+            except Exception as e:
+                failed_rename.append((fid, f"命名模板错误: {e}"))
+                item['renamed_file'] = ''
+                item['downloaded'] = True
+                continue
+
+            try:
                 dst = output_dir / new_name
                 shutil.copy2(src, dst)
                 renamed_count += 1

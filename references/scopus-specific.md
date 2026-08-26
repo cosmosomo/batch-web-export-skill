@@ -107,7 +107,26 @@ CSV 导出对话框默认设置：
 - 导出范围：本页中的所有文献（施引文献通常≤10条，一页足够）
 - 导出字段：引文信息（作者、标题、年份、EID、来源、卷期页、引用计数等）
 
-如果施引文献超过10条，需要注意：默认只导出当前页。如需导出全部，需在对话框中选择"文献 1 - N"范围。
+如果施引文献超过10条，需要注意：默认只导出当前页。如需导出全部，需在对话框中选择导出范围：
+
+```javascript
+// CSV对话框打开后，找到范围选择的select或radio
+// Scopus的导出对话框通常有"文献 1 - N"的下拉选择
+const selects = document.querySelectorAll('select');
+for (let s of selects) {
+    for (let opt of s.options) {
+        // 选择包含"全部"或最大数字的选项
+        if (opt.textContent.includes('全部') || /\d+\s*-\s*\d+/.test(opt.textContent)) {
+            // 优先选数字最大的范围
+            s.value = opt.value;
+            s.dispatchEvent(new Event('change', {bubbles: true}));
+            break;
+        }
+    }
+}
+```
+
+**注意**：施引文献通常较少（大部分文章<10条），默认导出当前页即可。只有高引用文章（>10条施引文献）才需要调整范围。如果不确定，可以在单篇验证阶段检查导出的CSV行数是否与页面显示的施引文献数一致。
 
 ## 抓取文献列表
 
@@ -140,19 +159,44 @@ citeLinks.forEach(a => {
 
 作者详情页的分页控件在页面底部，包含页码按钮（1, 2, 3...）和"上一个/下一个"。
 
-翻页方法：
+翻页方法（**不要用 offsetParent 可见性筛选**，弹窗遮挡会导致按钮被跳过）：
 ```javascript
-// 点击指定页码
-const links = document.querySelectorAll('a, button');
-for (let el of links) {
-    if (el.textContent.trim() === '2' && el.offsetParent !== null) {
-        el.click();
-        break;
+// 方法1：用 bu.find() 定位页码按钮（推荐，不受遮挡影响）
+// 在 Python 中：bu.click(bu.find("2").first)  —— 但注意"2"可能匹配其他元素
+// 更精确的方式：用JS定位分页区域内的页码按钮
+
+// 方法2：JS精确选择分页控件（推荐）
+const pagination = document.querySelector('[role="navigation"], .pagination, nav');
+if (pagination) {
+    const links = pagination.querySelectorAll('a, button');
+    for (let el of links) {
+        if (el.textContent.trim() === '2') {
+            el.click();
+            break;
+        }
+    }
+} else {
+    // 兜底：全局搜索但不筛选可见性
+    const all = document.querySelectorAll('a, button');
+    for (let el of all) {
+        if (el.textContent.trim() === '2' && el.closest('[role="navigation"], .pagination, nav')) {
+            el.click();
+            break;
+        }
     }
 }
 ```
 
 翻页后等待 5-6 秒让页面加载完成。
+
+## 批量执行
+
+对于100篇以上的批量导出，使用 `scripts/batch_export_template.py` 执行引擎模板：
+1. 复制模板到 computer_use_tool 的 code 参数中
+2. 修改 CONFIG 中的 URL 模板和参数
+3. 填入 ITEMS 列表（从作者页抓取的 EID 和引用数）
+4. 3个自定义函数已预置 Scopus 的实现，通常不需要修改
+5. 执行即可，引擎自动处理分批、失败收集、重试、重命名
 
 ## 已知问题
 
